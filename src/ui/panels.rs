@@ -145,6 +145,15 @@ pub fn top_bar(ui: &mut Ui, state: &mut AppState) {
             ));
         }
 
+        ui.separator();
+
+        if ui
+            .selectable_label(state.minmax_scaling, "Min-Max Scaling")
+            .clicked()
+        {
+            state.minmax_scaling = !state.minmax_scaling;
+        }
+
         if let Some(msg) = &state.status_message {
             ui.label(RichText::new(msg).color(Color32::RED));
         }

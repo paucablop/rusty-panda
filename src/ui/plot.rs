@@ -49,10 +49,23 @@ pub fn spectral_plot(ui: &mut Ui, state: &AppState) {
                     .map(|v| v.to_string())
                     .unwrap_or_else(|| format!("spectrum {idx}"));
 
+                let y_values: Vec<f64> = if state.minmax_scaling {
+                    let min = sp.y.iter().cloned().fold(f64::INFINITY, f64::min);
+                    let max = sp.y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                    let range = max - min;
+                    if range.abs() < f64::EPSILON {
+                        vec![0.0; sp.y.len()]
+                    } else {
+                        sp.y.iter().map(|&yi| (yi - min) / range).collect()
+                    }
+                } else {
+                    sp.y.clone()
+                };
+
                 let points: PlotPoints = sp
                     .x
                     .iter()
-                    .zip(sp.y.iter())
+                    .zip(y_values.iter())
                     .map(|(&xi, &yi)| [xi, yi])
                     .collect();
 

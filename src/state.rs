@@ -30,6 +30,9 @@ pub struct AppState {
 
     /// Whether a file loading operation is in progress.
     pub loading: bool,
+
+    /// Whether min-max scaling is applied to the spectra.
+    pub minmax_scaling: bool,
 }
 
 impl Default for AppState {
@@ -42,6 +45,7 @@ impl Default for AppState {
             color_map: None,
             status_message: None,
             loading: false,
+            minmax_scaling: false,
         }
     }
 }
