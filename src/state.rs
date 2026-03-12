@@ -33,6 +33,9 @@ pub struct AppState {
 
     /// Whether min-max scaling is applied to the spectra.
     pub minmax_scaling: bool,
+
+    /// Whether auto-scaling (auto-fit bounds) is active on the plot.
+    pub auto_scale: bool,
 }
 
 impl Default for AppState {
@@ -46,6 +49,7 @@ impl Default for AppState {
             status_message: None,
             loading: false,
             minmax_scaling: false,
+            auto_scale: true,
         }
     }
 }

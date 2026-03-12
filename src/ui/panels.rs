@@ -15,7 +15,7 @@ pub fn side_panel(ui: &mut Ui, state: &mut AppState) {
             egui::Image::new(logo)
                 .max_width(ui.available_width() * 0.8)
                 .max_height(120.0)
-                .rounding(4.0),
+                .corner_radius(4.0),
         );
     });
     ui.add_space(4.0);
@@ -152,6 +152,13 @@ pub fn top_bar(ui: &mut Ui, state: &mut AppState) {
             .clicked()
         {
             state.minmax_scaling = !state.minmax_scaling;
+        }
+
+        if ui
+            .selectable_label(state.auto_scale, "Auto-scale")
+            .clicked()
+        {
+            state.auto_scale = !state.auto_scale;
         }
 
         if let Some(msg) = &state.status_message {

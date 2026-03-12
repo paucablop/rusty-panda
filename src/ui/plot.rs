@@ -1,4 +1,4 @@
-use eframe::egui::{Color32, Ui};
+use eframe::egui::{Color32, Ui, Vec2b};
 use egui_plot::{Line, Plot, PlotPoints};
 
 use crate::state::AppState;
@@ -22,10 +22,13 @@ pub fn spectral_plot(ui: &mut Ui, state: &AppState) {
     let color_map = &state.color_map;
     let color_col = state.color_column.as_deref();
 
+    let auto = state.auto_scale;
+
     Plot::new("spectral_plot")
         .legend(egui_plot::Legend::default())
         .x_axis_label("Wavenumber")
         .y_axis_label("Intensity")
+        .auto_bounds(Vec2b::new(auto, auto))
         .allow_boxed_zoom(true)
         .allow_drag(true)
         .allow_scroll(true)
