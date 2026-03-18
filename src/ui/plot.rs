@@ -1,5 +1,5 @@
-use eframe::egui::{Color32, Ui, Vec2b};
-use egui_plot::{Line, Plot, PlotPoints};
+use eframe::egui::{self, Color32, CornerRadius, Frame, RichText, Stroke, Ui, Vec2b};
+use egui_plot::{Corner, Legend, Line, Plot, PlotPoints};
 
 use crate::state::AppState;
 
@@ -8,13 +8,34 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 /// Render the spectral plot in the central panel.
-pub fn spectral_plot(ui: &mut Ui, state: &AppState) {
+pub fn spectral_plot(ui: &mut Ui, state: &mut AppState) {
     let dataset = match &state.dataset {
         Some(ds) => ds,
         None => {
-            ui.centered_and_justified(|ui: &mut Ui| {
-                ui.heading("Open a file to view spectra  (File → Open…)");
-            });
+            Frame::default()
+                .fill(Color32::from_rgb(24, 17, 41))
+                .stroke(Stroke::new(1.0, Color32::from_rgb(63, 47, 95)))
+                .corner_radius(CornerRadius::same(26))
+                .inner_margin(egui::Margin::symmetric(32, 32))
+                .show(ui, |ui| {
+                    ui.centered_and_justified(|ui: &mut Ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.label(
+                                RichText::new("Bring in a dataset")
+                                    .size(32.0)
+                                    .strong()
+                                    .color(Color32::from_rgb(241, 247, 252)),
+                            );
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new(
+                                    "Load Parquet, JSON, or CSV data to turn this canvas into an interactive spectral view.",
+                                )
+                                .color(Color32::from_rgb(190, 176, 213)),
+                            );
+                        });
+                    });
+                });
             return;
         }
     };
@@ -22,62 +43,80 @@ pub fn spectral_plot(ui: &mut Ui, state: &AppState) {
     let color_map = &state.color_map;
     let color_col = state.color_column.as_deref();
 
-    let auto = state.auto_scale;
+    Frame::default()
+        .fill(Color32::from_rgb(18, 12, 33))
+        .stroke(Stroke::new(1.0, Color32::from_rgb(63, 47, 95)))
+        .corner_radius(CornerRadius::same(24))
+        .inner_margin(egui::Margin::symmetric(18, 18))
+        .show(ui, |ui| {
+            let mut plot = Plot::new("spectral_plot")
+                .legend(
+                    Legend::default()
+                        .position(Corner::RightTop)
+                        .background_alpha(0.85)
+                        .follow_insertion_order(true),
+                )
+                .x_axis_label("Wavenumber")
+                .y_axis_label(if state.minmax_scaling { "Normalized intensity" } else { "Intensity" })
+                .auto_bounds(Vec2b::new(state.auto_scale, state.auto_scale))
+                .allow_boxed_zoom(true)
+                .allow_drag(true)
+                .allow_scroll(true)
+                .allow_zoom(true);
 
-    Plot::new("spectral_plot")
-        .legend(egui_plot::Legend::default())
-        .x_axis_label("Wavenumber")
-        .y_axis_label("Intensity")
-        .auto_bounds(Vec2b::new(auto, auto))
-        .allow_boxed_zoom(true)
-        .allow_drag(true)
-        .allow_scroll(true)
-        .allow_zoom(true)
-        .show(ui, |plot_ui| {
-            for &idx in &state.visible_indices {
-                let sp = &dataset.spectra[idx];
-
-                // Determine colour from the colour-by column.
-                let color = color_col
-                    .and_then(|col| {
-                        let val = sp.metadata.get(col)?;
-                        let cm = color_map.as_ref()?;
-                        Some(cm.color_for(val))
-                    })
-                    .unwrap_or(Color32::LIGHT_BLUE);
-
-                // Build the legend name from the colour column value.
-                let name = color_col
-                    .and_then(|col| sp.metadata.get(col))
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|| format!("spectrum {idx}"));
-
-                let y_values: Vec<f64> = if state.minmax_scaling {
-                    let min = sp.y.iter().cloned().fold(f64::INFINITY, f64::min);
-                    let max = sp.y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                    let range = max - min;
-                    if range.abs() < f64::EPSILON {
-                        vec![0.0; sp.y.len()]
-                    } else {
-                        sp.y.iter().map(|&yi| (yi - min) / range).collect()
-                    }
-                } else {
-                    sp.y.clone()
-                };
-
-                let points: PlotPoints = sp
-                    .x
-                    .iter()
-                    .zip(y_values.iter())
-                    .map(|(&xi, &yi)| [xi, yi])
-                    .collect();
-
-                let line = Line::new(points)
-                    .name(&name)
-                    .color(color)
-                    .width(1.5);
-
-                plot_ui.line(line);
+            if state.plot_needs_reset {
+                plot = plot.reset();
+                state.plot_needs_reset = false;
             }
+
+            plot
+                .show(ui, |plot_ui| {
+                    for &idx in &state.visible_indices {
+                        let sp = &dataset.spectra[idx];
+
+                        // Determine colour from the colour-by column.
+                        let color = color_col
+                            .and_then(|col| {
+                                let val = sp.metadata.get(col)?;
+                                let cm = color_map.as_ref()?;
+                                Some(cm.color_for(val))
+                            })
+                            .unwrap_or(Color32::from_rgb(180, 138, 255));
+
+                        // Build the legend name from the colour column value.
+                        let name = color_col
+                            .and_then(|col| sp.metadata.get(col))
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| format!("spectrum {idx}"));
+
+                        let y_values: Vec<f64> = if state.minmax_scaling {
+                            let min = sp.y.iter().cloned().fold(f64::INFINITY, f64::min);
+                            let max = sp.y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                            let range = max - min;
+                            if range.abs() < f64::EPSILON {
+                                vec![0.0; sp.y.len()]
+                            } else {
+                                sp.y.iter().map(|&yi| (yi - min) / range).collect()
+                            }
+                        } else {
+                            sp.y.clone()
+                        };
+
+                        let points: PlotPoints = sp
+                            .x
+                            .iter()
+                            .zip(y_values.iter())
+                            .map(|(&xi, &yi)| [xi, yi])
+                            .collect();
+
+                        let alpha = if state.visible_indices.len() > 120 { 110 } else { 180 };
+                        let line = Line::new(points)
+                            .name(&name)
+                            .color(Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha))
+                            .width(if state.visible_indices.len() > 80 { 1.1 } else { 1.8 });
+
+                        plot_ui.line(line);
+                    }
+                });
         });
 }

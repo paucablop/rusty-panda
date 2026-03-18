@@ -36,6 +36,9 @@ pub struct AppState {
 
     /// Whether auto-scaling (auto-fit bounds) is active on the plot.
     pub auto_scale: bool,
+
+    /// Request a one-shot plot reset on the next frame.
+    pub plot_needs_reset: bool,
 }
 
 impl Default for AppState {
@@ -50,6 +53,7 @@ impl Default for AppState {
             loading: false,
             minmax_scaling: false,
             auto_scale: true,
+            plot_needs_reset: true,
         }
     }
 }
@@ -67,6 +71,7 @@ impl AppState {
         self.dataset = Some(dataset);
         self.status_message = None;
         self.loading = false;
+        self.request_plot_reset();
     }
 
     /// Rebuild the colour map from the current `color_column`.
@@ -83,6 +88,9 @@ impl AppState {
     pub fn refilter(&mut self) {
         if let Some(ds) = &self.dataset {
             self.visible_indices = filtered_indices(ds, &self.filters);
+            if self.auto_scale {
+                self.request_plot_reset();
+            }
         }
     }
 
@@ -93,6 +101,10 @@ impl AppState {
             let ds_clone = ds.clone();
             self.rebuild_color_map(&ds_clone);
         }
+    }
+
+    pub fn request_plot_reset(&mut self) {
+        self.plot_needs_reset = true;
     }
 
     /// Toggle a single metadata value in a column's filter.

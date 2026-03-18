@@ -65,11 +65,4 @@ impl ColorMap {
             .unwrap_or(self.default_color)
     }
 
-    /// Return the legend entries (value label → colour) for the UI.
-    pub fn legend_entries(&self) -> Vec<(String, Color32)> {
-        self.mapping
-            .iter()
-            .map(|(v, c): (&MetadataValue, &Color32)| (v.to_string(), *c))
-            .collect()
-    }
 }

@@ -6,6 +6,13 @@ default-run = "rusty-panda"
 description = "Cross-platform spectral data viewer built with egui"
 license = "MIT"
 
+[package.metadata.bundle]
+name = "Rusty Panda"
+identifier = "com.paucablop.rusty-panda"
+icon = ["assets/logo.icns"]
+category = "public.app-category.utilities"
+short_description = "Spectral data viewer built with egui"
+
 [dependencies]
 # UI framework
 eframe = { version = "0.31", features = ["default"] }
