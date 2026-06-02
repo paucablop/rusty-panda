@@ -1,6 +1,6 @@
 use eframe::egui::{self, Align, Button, Color32, CornerRadius, Frame, RichText, ScrollArea, Stroke, Ui};
 
-use crate::state::AppState;
+use crate::state::{AppState, DerivativeOrder};
 
 // ---------------------------------------------------------------------------
 // Left side panel – filter widgets
@@ -163,56 +163,67 @@ pub fn top_bar(ui: &mut Ui, state: &mut AppState) {
         })
         .unwrap_or(0);
 
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.label(
-                RichText::new("Rusty Panda")
-                    .size(28.0)
-                    .strong()
-                    .color(Color32::from_rgb(241, 247, 252)),
-            );
-        });
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new("Rusty Panda")
+                        .size(28.0)
+                        .strong()
+                        .color(Color32::from_rgb(241, 247, 252)),
+                );
+            });
 
-        ui.add_space(12.0);
+            ui.add_space(12.0);
 
-        ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-            if let Some(msg) = &state.status_message {
-                ui.label(RichText::new(msg).color(Color32::from_rgb(255, 126, 126)));
-            }
+            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                if let Some(msg) = &state.status_message {
+                    ui.label(RichText::new(msg).color(Color32::from_rgb(255, 126, 126)));
+                }
 
-            if state.loading {
-                ui.add(egui::Spinner::new().size(18.0));
-            }
+                if state.loading {
+                    ui.add(egui::Spinner::new().size(18.0));
+                }
 
-            if toggle_chip(ui, &mut state.auto_scale, "Auto-scale") && state.auto_scale {
-                state.request_plot_reset();
-            }
+                if toggle_chip(ui, &mut state.auto_scale, "Auto-scale") && state.auto_scale {
+                    state.request_plot_reset();
+                }
 
-            if toggle_chip(ui, &mut state.minmax_scaling, "Min-max") && state.auto_scale {
-                state.request_plot_reset();
-            }
+                if toggle_chip(ui, &mut state.minmax_scaling, "Min-max") && state.auto_scale {
+                    state.request_plot_reset();
+                }
 
-            if ui
-                .add(
-                    Button::new(
-                        RichText::new("Open Data")
-                            .strong()
-                            .color(Color32::from_rgb(250, 254, 255)),
+                if toggle_chip(ui, &mut state.subtraction_mode, "Process") {
+                    state.set_subtraction_mode(state.subtraction_mode);
+                }
+
+                if ui
+                    .add(
+                        Button::new(
+                            RichText::new("Open Data")
+                                .strong()
+                                .color(Color32::from_rgb(250, 254, 255)),
+                        )
+                        .fill(Color32::from_rgb(148, 92, 255))
+                        .corner_radius(CornerRadius::same(18)),
                     )
-                    .fill(Color32::from_rgb(148, 92, 255))
-                    .corner_radius(CornerRadius::same(18)),
-                )
-                .clicked()
-            {
-                open_file_dialog(state);
-            }
+                    .clicked()
+                {
+                    open_file_dialog(state);
+                }
 
-            if let Some(ds) = &state.dataset {
-                stat_badge(ui, format!("{} filters active", active_filters));
-                stat_badge(ui, format!("{} visible", state.visible_indices.len()));
-                stat_badge(ui, format!("{} spectra", ds.len()));
-            }
+                if let Some(ds) = &state.dataset {
+                    stat_badge(ui, format!("{} filters active", active_filters));
+                    stat_badge(ui, format!("{} visible", state.visible_indices.len()));
+                    stat_badge(ui, format!("{} spectra", ds.len()));
+                }
+            });
         });
+
+        if state.subtraction_mode {
+            ui.add_space(10.0);
+            subtraction_controls(ui, state);
+        }
     });
 }
 
@@ -272,6 +283,204 @@ fn toggle_chip(ui: &mut Ui, value: &mut bool, label: &str) -> bool {
     }
 
     false
+}
+
+fn subtraction_controls(ui: &mut Ui, state: &mut AppState) {
+    Frame::default()
+        .fill(Color32::from_rgb(20, 13, 36))
+        .stroke(Stroke::new(1.5, Color32::from_rgb(110, 65, 200)))
+        .corner_radius(CornerRadius::same(16))
+        .inner_margin(egui::Margin::symmetric(18, 12))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                // ── Spectra section ───────────────────────────────────────
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new("Spectra")
+                            .small()
+                            .color(Color32::from_rgb(175, 159, 198)),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        spectrum_chip(
+                            ui,
+                            "S₁",
+                            state.subtraction_first,
+                            Color32::from_rgb(148, 92, 255),
+                        );
+                        ui.label(
+                            RichText::new("  −  a ×  ")
+                                .color(Color32::from_rgb(200, 185, 220)),
+                        );
+                        spectrum_chip(
+                            ui,
+                            "S₂",
+                            state.subtraction_second,
+                            Color32::from_rgb(52, 200, 184),
+                        );
+                    });
+                    ui.add_space(3.0);
+                    let hint = if state.subtraction_first.is_none()
+                        || state.subtraction_second.is_none()
+                    {
+                        "← click spectra in the plot"
+                    } else {
+                        ""
+                    };
+                    ui.label(
+                        RichText::new(hint)
+                            .small()
+                            .italics()
+                            .color(Color32::from_rgb(110, 95, 140)),
+                    );
+                });
+
+                ui.add_space(16.0);
+                ui.separator();
+                ui.add_space(16.0);
+
+                // ── Coefficient section ───────────────────────────────────
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new("Coefficient  a")
+                            .small()
+                            .color(Color32::from_rgb(175, 159, 198)),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        let mut slider_val = state.subtraction_a;
+                        if ui
+                            .add_sized(
+                                [200.0, 20.0],
+                                egui::Slider::new(&mut slider_val, 0.0..=2.0)
+                                    .show_value(false),
+                            )
+                            .changed()
+                        {
+                            state.set_subtraction_a(slider_val);
+                        }
+                        ui.add_space(4.0);
+                        let text_resp = ui.add_sized(
+                            [72.0, 0.0],
+                            egui::TextEdit::singleline(&mut state.subtraction_a_input)
+                                .hint_text("1.0"),
+                        );
+                        if text_resp.lost_focus() {
+                            let s = state.subtraction_a_input.clone();
+                            if !state.set_subtraction_a_from_input(&s) {
+                                state.subtraction_a_input =
+                                    format!("{:.4}", state.subtraction_a);
+                            }
+                        }
+                    });
+                });
+
+                ui.add_space(16.0);
+                ui.separator();
+                ui.add_space(16.0);
+
+                // ── Derivative section ────────────────────────────────────
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new("Derivative")
+                            .small()
+                            .color(Color32::from_rgb(175, 159, 198)),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        for (label, order) in [
+                            ("None", DerivativeOrder::None),
+                            ("1ˢᵗ", DerivativeOrder::First),
+                            ("2ⁿᵈ", DerivativeOrder::Second),
+                        ] {
+                            let active = state.derivative_order == order;
+                            let fill = if active {
+                                Color32::from_rgb(148, 92, 255)
+                            } else {
+                                Color32::from_rgb(39, 27, 63)
+                            };
+                            let text_col = if active {
+                                Color32::from_rgb(255, 255, 255)
+                            } else {
+                                Color32::from_rgb(210, 195, 228)
+                            };
+                            if ui
+                                .add(
+                                    Button::new(
+                                        RichText::new(label).small().color(text_col),
+                                    )
+                                    .fill(fill)
+                                    .corner_radius(CornerRadius::same(10)),
+                                )
+                                .clicked()
+                            {
+                                state.derivative_order = order;
+                            }
+                        }
+                        if state.derivative_order != DerivativeOrder::None {
+                            ui.add_space(10.0);
+                            ui.separator();
+                            ui.add_space(10.0);
+                            ui.label(
+                                RichText::new("Filter")
+                                    .small()
+                                    .color(Color32::from_rgb(175, 159, 198)),
+                            );
+                            ui.add(
+                                egui::DragValue::new(&mut state.derivative_window)
+                                    .range(1..=199_usize)
+                                    .speed(1)
+                                    .suffix(" pts"),
+                            );
+                        }
+                        });
+                });
+
+                // ── Clear button (right-aligned) ──────────────────────────
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    if ui
+                        .add(
+                            Button::new(
+                                RichText::new("✕  Clear")
+                                    .small()
+                                    .color(Color32::from_rgb(220, 200, 240)),
+                            )
+                            .fill(Color32::from_rgb(60, 35, 90))
+                            .corner_radius(CornerRadius::same(12)),
+                        )
+                        .clicked()
+                    {
+                        state.clear_subtraction_selection();
+                    }
+                });
+            });
+        });
+}
+
+fn spectrum_chip(ui: &mut Ui, label: &str, index: Option<usize>, accent: Color32) {
+    let (text, fill, stroke_col, text_col) = if let Some(i) = index {
+        (
+            format!("{label}  #{i}"),
+            Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 35),
+            accent,
+            accent,
+        )
+    } else {
+        (
+            format!("{label}  —"),
+            Color32::from_rgb(33, 24, 52),
+            Color32::from_rgb(63, 47, 95),
+            Color32::from_rgb(130, 115, 155),
+        )
+    };
+    Frame::default()
+        .fill(fill)
+        .stroke(Stroke::new(1.0, stroke_col))
+        .corner_radius(CornerRadius::same(10))
+        .inner_margin(egui::Margin::symmetric(8, 3))
+        .show(ui, |ui| {
+            ui.label(RichText::new(text).small().strong().color(text_col));
+        });
 }
 
 fn stat_badge(ui: &mut Ui, text: String) {
